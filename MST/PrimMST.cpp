@@ -1,0 +1,478 @@
+#include <iostream>
+#include <vector>
+#include <fstream>
+#include <cassert>
+#include <limits>
+#include <ctime>
+#include <cstdlib>
+#include <algorithm>
+
+using namespace std;
+
+int MAX_INT = numeric_limits<int>::max();
+
+// graph class implementation
+class Graph
+{
+public:
+
+	Graph(istream &input);
+
+	Graph(int edgeNum = 0, int verticeNum = 5, double density = 0.2);
+
+	int getVerticeNum() const { return verticeNum; }
+
+	int getEdgeNum() const { return edgeNum; }
+
+	// tests whether there is an edge from node x to node y
+	bool adjacent(int x, int y) const;
+
+	// lists all nodes y such that there is an edge from
+	// x to y
+	vector<int> neighbors(int x) const;
+
+	// return all vertices in the graph
+	vector<int> getVertices() const;
+
+	bool add_edge(int x, int y, int value);
+
+	bool delete_edge(int x, int y);
+
+	int get_edge_value(int x, int y) const;
+
+	void set_edge_value(int x, int y, int value);
+
+private:
+	int edgeNum;
+	int verticeNum;
+
+	vector<vector<int> > adMatrix;
+};
+
+
+Graph::Graph(istream &input)
+{
+	input >> verticeNum;
+	if (verticeNum <= 0)
+	{
+		return;
+	}
+
+	adMatrix = vector<vector<int> >(verticeNum, vector<int>(verticeNum));
+
+	int i, j, value;
+
+	while (input >> i >> j >> value)
+	{
+		add_edge(i, j, value);
+	}
+}
+
+Graph::Graph(int edgeNum, int verticeNum, double density)
+{
+	this->edgeNum = edgeNum;
+
+	if (verticeNum <= 0)
+	{
+		this->verticeNum = 0;
+		return;
+	}
+	else
+		this-> verticeNum = verticeNum;
+
+	adMatrix = vector<vector<int> >(verticeNum, vector<int>(verticeNum));
+
+	srand(time(0));
+
+	const int RANGE = 10;
+	for (int i = 0; i < verticeNum-1; i++)
+	{
+		for (int j = 1; j < verticeNum; j++)
+		{
+			double prob = static_cast<double>(rand()) / RAND_MAX;
+
+			if (prob < density && i!= j) {
+				int value = rand() % RANGE + 1;
+				if (adMatrix[i][j] == 0 && adMatrix[j][i] == 0) {
+					add_edge(i, j, value);
+					add_edge(j, i, value);
+				}
+			}
+		}
+	}
+}
+
+bool Graph::adjacent(int x, int y) const
+{
+	assert(x>=0 && x<verticeNum && y>=0 && y<verticeNum);
+
+	return adMatrix[x][y] > 0;
+}
+
+vector<int> Graph::neighbors(int x) const
+{
+	assert(x>=0 && x<verticeNum);
+
+	vector<int> list;
+	for (int i=0; i<verticeNum; i++)
+	{
+		if (adMatrix[x][i] > 0)
+		{
+			list.push_back(i);
+		}
+	}
+
+	return list;
+}
+
+vector<int> Graph::getVertices() const
+{
+	vector<int> vertices;
+
+	for (int i=0; i<verticeNum; i++)
+	{
+		vertices.push_back(i);
+	}
+
+	return vertices;
+}
+
+bool Graph::add_edge(int x, int y, int value)
+{
+	assert(x>=0 && x<verticeNum && y>=0 && y<verticeNum);
+
+	if (adMatrix[x][y] > 0)
+		return false;
+
+	adMatrix[x][y] = value;
+	adMatrix[y][x] = value;
+
+	return true;
+}
+
+bool Graph::delete_edge(int x, int y)
+{
+	assert(x>=0 && x<verticeNum && y>=0 && y<verticeNum);
+
+	if (adMatrix[x][y] > 0)
+	{
+		adMatrix[x][y] = 0;
+		adMatrix[y][x] = 0;
+		return true;
+	}
+
+	return false;
+}
+
+int Graph::get_edge_value(int x, int y) const
+{
+	assert(x>=0 && x<verticeNum && y>=0 && y<verticeNum);
+
+	return adMatrix[x][y];
+}
+
+void Graph::set_edge_value(int x, int y, int value)
+{
+	assert(x>=0 && x<verticeNum && y>=0 && y<verticeNum);
+
+	adMatrix[x][y] = value;
+	adMatrix[y][x] = value;
+}
+
+struct QueueNode
+{
+	int symbol;
+	int priority;
+
+	QueueNode(int symbol=-1, int priority=INT_MAX):
+		symbol(symbol), priority(priority)
+	{
+	}
+};
+
+
+struct EdgeNode
+{
+	int x;
+	int y;
+	int value;
+
+	EdgeNode(int x=-1, int y = -1, int value=INT_MAX):
+		x(x), y(y), value(value)
+	{
+	}
+};
+
+void swap(QueueNode *x, QueueNode *y)
+{
+	QueueNode temp = *x;
+    *x = *y;
+    *y = temp;
+}
+
+
+class MinHeap
+{
+public:
+    // Constructor
+    MinHeap(vector<QueueNode> &symbols, int verticeNum = 5);
+
+    void MinHeapify(int );
+
+    int parent(int i) { return (i-1)/2; }
+
+    void printQueue();
+
+    // to get index of left child of node at index i
+    int left(int i) { return (2*i + 1); }
+
+    // to get index of right child of node at index i
+    int right(int i) { return (2*i + 2); }
+
+    // to extract the root which is the minimum element
+    void minPrioirty();
+
+    QueueNode& top();
+
+    bool contains(int symbol);
+
+    void chgNodeValue(int symbol, int value);
+
+    int size(){return minHeap.size();}
+
+    int getPriority (int symbol);
+
+    void upwards(int index);
+
+private:
+    vector<QueueNode> minHeap;
+    int capacity;
+};
+
+MinHeap::MinHeap(vector<QueueNode> &symbols, int verticeNum)
+{
+	capacity = verticeNum;
+	for (int i = 0; i < symbols.size(); i++){
+		minHeap.push_back(QueueNode(i, MAX_INT));
+	}
+}
+
+void MinHeap::printQueue(){
+	for (int i = 0; i < minHeap.size(); i++){
+		cout << minHeap[i].symbol << "," << minHeap[i].priority << "   " ;
+	}
+	cout << endl;
+}
+
+int MinHeap::getPriority(int symbol){
+	for (int i = 0; i < capacity; i++){
+		if (minHeap[i].symbol == symbol){
+			return minHeap[i].priority;
+		}
+	}
+	return MAX_INT;
+
+}
+
+
+bool MinHeap::contains(int symbol){
+	vector<int> temp;
+
+	for (int i = 0; i < minHeap.size(); i++){
+		temp.push_back(minHeap[i].symbol);
+	}
+
+	if (symbol >= 0){
+		for (int i = 0; i < temp.size(); i++){
+			if (temp[i] == symbol){
+				return true;
+			}
+		}
+
+	}
+
+	return false;
+}
+
+void MinHeap::upwards(int i)
+{
+	if (i <= 0)
+		return;
+
+	int parent = (i-1)/2;
+
+	if (minHeap[parent].priority > minHeap[i].priority)
+	{
+		swap(&minHeap[parent], &minHeap[i]);
+		upwards(parent);
+	}
+}
+
+void MinHeap::chgNodeValue(int symbol, int value)
+{
+	for (int i = 0; i < capacity; i++){
+		if (minHeap[i].symbol == symbol){
+			if (minHeap[i].priority > value){
+				minHeap[i].priority = value;
+				upwards(i);
+			}
+			else if (minHeap[i].priority < value){
+				minHeap[i].priority = value;
+				MinHeapify(i);
+			}
+		}
+	}
+
+}
+
+QueueNode& MinHeap::top()
+{
+	return minHeap[0];
+}
+
+
+void MinHeap::minPrioirty()
+{
+	swap(&minHeap[0], &minHeap[minHeap.size()-1]);
+	minHeap.pop_back();
+
+	MinHeapify(0);
+
+}
+
+void MinHeap::MinHeapify(int i)
+{
+    int l = left(i);
+    int r = right(i);
+    int smallest = i;
+    if (l < minHeap.size() && minHeap[l].priority < minHeap[i].priority)
+        smallest = l;
+    if (r < minHeap.size() && minHeap[r].priority < minHeap[smallest].priority)
+        smallest = r;
+    if (smallest != i)
+    {
+        swap(&minHeap[i], &minHeap[smallest]);
+        MinHeapify(smallest);
+    }
+}
+
+
+
+class ShortestPath
+{
+public:
+	// finding the minimum spanning tree path starting from u
+	vector<EdgeNode> path(const Graph &graph, int u);
+
+	// return the path cost associated with the MST
+	int pathSize(const Graph &graph, int u);
+
+private:
+	int PrimMST(const Graph &graph, int u);
+	vector<EdgeNode> traces;
+};
+
+vector<EdgeNode> ShortestPath::path(const Graph &graph, int u)
+{
+	vector<EdgeNode> route;
+
+	if (PrimMST(graph, u) == MAX_INT){
+		return route;
+	}
+
+	for (int i = 0; i< traces.size() ; i++){
+		route.push_back(traces[i]);
+	}
+
+	return route;
+}
+
+int ShortestPath::pathSize(const Graph &graph, int u){
+	return PrimMST(graph, u);
+}
+
+
+int ShortestPath::PrimMST(const Graph &graph, int u)
+{
+	int size = graph.getVerticeNum();
+	assert(u>=0 && u<size);
+
+	vector<int> prevs(graph.getVerticeNum(), -1);
+
+	// initiate traces;
+	traces.clear();
+
+	vector<QueueNode> heap(size);
+
+	MinHeap pQueue(heap, size);
+	pQueue.chgNodeValue(u, 0);
+
+	int sum = 0;
+
+	while (pQueue.size() > 0)
+	{
+		QueueNode top = pQueue.top();
+		pQueue.minPrioirty(); // removes the minimum node value node
+
+		if (prevs[top.symbol] != -1)
+		{
+			sum += top.priority;
+			traces.push_back(
+					EdgeNode(prevs[top.symbol], top.symbol, top.priority));
+		}
+
+
+		vector<int> neighbors = graph.neighbors(top.symbol);
+
+		QueueNode node;
+		for (int i = 0; i < neighbors.size(); i++)
+		{
+			node.symbol = neighbors[i];
+			node.priority = pQueue.getPriority(node.symbol);
+
+			if (pQueue.contains(node.symbol))
+			{
+				int edge = graph.get_edge_value(top.symbol, node.symbol);
+				if (edge < node.priority)
+				{
+					node.priority = edge;
+					pQueue.chgNodeValue(node.symbol, edge);
+					prevs[node.symbol] = top.symbol; // update previous vertices
+				}
+			}
+
+		}
+
+	}
+
+	return sum;
+}
+
+int main(int argc, char *argv[])
+{
+	if (argc != 2)
+	{
+		cout << "Usage: " << argv[0] << " test_data_file" << endl;
+		return 1;
+	}
+
+	ifstream input(argv[1]);
+	Graph graph(input);
+	input.close();
+
+	ShortestPath sp;
+
+	int pathSize;
+	vector<EdgeNode> path;
+
+	pathSize = sp.pathSize(graph, 0);
+	path = sp.path(graph, 0);
+
+	for (int i = 0; i< path.size() ; i++){
+		cout << path[i].x << " -> " << path[i].y << " : cost = " << path[i].value << endl;
+	}
+
+	cout << "\nThe results of Prim Algorithm is " << pathSize << endl;
+
+	return 0;
+}
